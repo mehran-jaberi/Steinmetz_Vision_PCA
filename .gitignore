@@ -1,0 +1,35 @@
+# ============================================================
+# .gitignore — steinmetz analysis project
+# ============================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Large dataset (obtained separately; files exceed GitHub's 100 MB limit) ---
+Steinmetz_et_al_2019_9974357/
+Steinmetz_et_al_2019_9974357.zip
+
+# --- Mirror of the original MATLAB analysis code (link the upstream repo instead) ---
+steinmetz-et-al-2019-master/
+
+# --- Generated outputs (regenerable with: uv run python PART2.py) ---
+part2_outputs/
+
+# --- Editor / OS / tools ---
+.continue/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Scratch notebooks ---
+new.ipynb
+new.ipynb (first cell)

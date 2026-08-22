@@ -1,0 +1,7 @@
+{
+    "Experiment_9974357": "^Steinmetz_et_al_2019_9974357.*\\.npy$",
+    "Spike_Data": ".*spikes.*\\.npy$",
+    "Trial_Metrics": "^trials\\..*\\.npy$",
+    "Position_Data": ".*sitePositions.*\\.npy$",
+    "Timestamp_Data": ".*\\.timestamps\\.npy$"
+}
