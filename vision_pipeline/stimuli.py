@@ -128,6 +128,25 @@ def reconstruct_sparse_noise(session):
     return flashes, grid
 
 
+def isolated_flash_mask(flashes, window) -> np.ndarray:
+    """Mask of flashes whose presentation is temporally isolated.
+
+    A presentation event is a unique flash time; simultaneous flashes share a
+    timestamp and are therefore a single event. An event is *isolated* when no
+    other event occurs within ``window`` seconds on either side. Restricting a
+    spike-triggered average to isolated presentations removes contamination
+    from responses to neighbouring flashes, at the cost of fewer presentations.
+    """
+    times = np.asarray(flashes["time"].values, float)
+    uniq, inverse = np.unique(times, return_inverse=True)
+    keep = np.ones(len(uniq), dtype=bool)
+    if len(uniq) > 1:
+        too_close = np.diff(uniq) < window
+        keep[:-1] &= ~too_close
+        keep[1:] &= ~too_close
+    return keep[inverse]
+
+
 def extract_grating_representations(grating_df, features=None) -> pd.DataFrame:
     """Per-trial stimulus feature matrix (design matrix) for the gratings.
 

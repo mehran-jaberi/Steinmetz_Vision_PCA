@@ -207,9 +207,15 @@ def load_session_alf(session_folder, verbose=True) -> SessionData:
         spike_clusters=spike_clusters,
         n_clusters=n_clusters,
         cluster_depths=np.load(folder / "clusters.depths.npy").ravel(),
+        # ALF stores clusters.peakChannel 1-based (1..n_channels) while the
+        # channel tables are 0-based, so convert once here: every consumer then
+        # uses the value as a direct channel index. Verified against the probe
+        # geometry: unit depth matches the peak channel's position to <1 um
+        # with this conversion (~10 um, half a channel pitch, without it).
         cluster_peak_channel=np.load(folder / "clusters.peakChannel.npy")
         .ravel()
-        .astype(int),
+        .astype(int)
+        - 1,
         cluster_probes=np.load(folder / "clusters.probes.npy").ravel().astype(int),
         cluster_waveform_duration=np.load(folder / "clusters.waveformDuration.npy")
         .ravel(),
@@ -259,8 +265,14 @@ def load_session_alf(session_folder, verbose=True) -> SessionData:
     # sanity checks (fail fast on corrupt/incompatible sessions)
     if spike_clusters.max(initial=0) >= n_clusters:
         raise ValueError("spike cluster id exceeds number of clusters")
-    if session.cluster_peak_channel.max(initial=0) >= len(session.channel_region):
-        raise ValueError("peak channel id exceeds number of channels")
+    peak = session.cluster_peak_channel
+    n_channels = len(session.channel_region)
+    if peak.max(initial=0) >= n_channels or peak.min(initial=0) < 0:
+        raise ValueError(
+            f"peak channel out of range after the 1-based conversion: "
+            f"[{peak.min(initial=0)}, {peak.max(initial=0)}] for "
+            f"{n_channels} channels"
+        )
 
     if verbose:
         print(f"Loaded session: {session.session}")

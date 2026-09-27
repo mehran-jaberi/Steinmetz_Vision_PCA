@@ -32,7 +32,7 @@ from scipy import stats
 from .config import AnalysisConfig
 from .encoding import decode_side_null
 from .responses import bin_spike_counts, build_response_matrix
-from .stimuli import grating_use_mask
+from .stimuli import grating_use_mask, isolated_flash_mask
 from .units import responsiveness
 from .utils import bh_fdr, count_spikes_in_windows
 
@@ -124,9 +124,32 @@ def check_session(session, cfg: AnalysisConfig | None = None,
                "every spike must map to an existing cluster",
                f"max id = {cluster_max}")
 
+    # peakChannel is 1-based in ALF and converted to a 0-based index at load;
+    # checking the converted range catches a wrong convention outright
+    peak_min = int(session.cluster_peak_channel.min(initial=0))
     peak_max = int(session.cluster_peak_channel.max(initial=0))
-    report.add("peak_channels_valid", peak_max < len(session.channel_region),
-               "peak channel must index a channel region", f"max = {peak_max}")
+    n_channels = len(session.channel_region)
+    report.add("peak_channels_valid",
+               peak_min >= 0 and peak_max < n_channels,
+               "peak channel (1-based in ALF, converted at load) must index a "
+               "channel region",
+               f"index range {peak_min}-{peak_max} of {n_channels} channels")
+
+    # the peak channel must also be geometrically consistent with the unit's
+    # depth: a wrong 1-based/0-based convention shifts it by one channel pitch
+    # (~20 um), which is how this bug was originally detected
+    if session.n_clusters and len(session.channel_positions) == n_channels:
+        idx = np.clip(session.cluster_peak_channel, 0, n_channels - 1)
+        # the *signed* median is the sharp test: a wrong convention shifts the
+        # whole distribution by ~10 um (half a channel pitch), whereas the
+        # absolute median is dominated by genuine scatter between units
+        bias = session.cluster_depths - session.channel_positions[idx, 1]
+        med_bias = float(np.median(bias))
+        report.add("peak_channel_depth_alignment", abs(med_bias) < 5.0,
+                   "unit depth must match its peak channel position; an "
+                   "off-by-one channel convention shifts the median by ~10 um",
+                   f"median (depth - channel position) = {med_bias:.2f} um",
+                   warn=True)
 
     # every unit used in the analysis must have at least one spike
     empty = int(np.sum(session.n_spikes_per_cluster == 0))
@@ -202,16 +225,25 @@ def check_stimuli(session, grating_df, flashes, grid,
 
     # Overlapping response windows only matter for *distinct* presentation
     # times: simultaneous flashes (ties in the raw timestamp array) are a single
-    # presentation event, so the ISI is measured on unique timestamps.
+    # presentation event, so the ISI is measured on unique timestamps. In
+    # isolated-flash mode the STA only sees presentations with no neighbour
+    # inside the window, so the check is applied to that effective subset.
     times = np.sort(flashes["time"].values)
     uniq, counts_t = np.unique(times, return_counts=True)
     n_ties = int(np.sum(counts_t > 1))
+    mode = "all presentations used (rf_isolated_only=False)"
+    if cfg.rf_isolated_only:
+        keep = isolated_flash_mask(flashes, cfg.rf_window)
+        uniq = np.unique(times[keep])
+        mode = (f"{len(uniq)} isolated presentations used; the STA ignores "
+                f"presentations < {cfg.rf_window:g} s apart")
     isi = np.diff(uniq)
     if len(isi):
         report.add("flash_isi_ge_window", bool(isi.min() >= cfg.rf_window * 0.5),
                    "distinct presentations closer than the STA window cause "
                    "overlapping responses (simultaneous flashes are allowed)",
-                   f"min ISI = {isi.min():.4f} s, {n_ties} simultaneous events",
+                   f"min ISI = {isi.min():.4f} s, {n_ties} simultaneous events, "
+                   + mode,
                    warn=True)
 
     # every flash cell must be reachable by the grid mapping (round-trip)

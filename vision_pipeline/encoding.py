@@ -57,9 +57,12 @@ def compute_contrast_tuning(session, unit_ids, grating_df,
     rows = []
     for i, cond in enumerate(uniq):
         m = conds == cond
+        n = int(m.sum())
         matrix[i] = X[m].mean(axis=0)
-        sem[i] = X[m].std(axis=0, ddof=1) / np.sqrt(max(int(m.sum()), 1))
-        rows.append({"condition": cond, "n_trials": int(m.sum())})
+        # a single trial has no sample standard deviation: use a zero error bar
+        # instead of the NaN (and "degrees of freedom <= 0" warning) ddof=1 gives
+        sem[i] = (X[m].std(axis=0, ddof=1) / np.sqrt(n)) if n > 1 else 0.0
+        rows.append({"condition": cond, "n_trials": n})
 
     return TuningResult(
         tuning=pd.DataFrame(rows), matrix=matrix, sem=sem, conditions=uniq,

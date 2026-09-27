@@ -189,6 +189,28 @@ def run_part2(session, out_dir, cfg: AnalysisConfig | None = None,
 
     rf = compute_receptive_fields(session, refined_ids, flashes, grid, cfg,
                                   verbose=verbose)
+    # Robustness check: the same STA restricted to temporally isolated
+    # presentations. The sparse-noise sequence runs at a minimum ISI (~10 ms)
+    # far shorter than the STA window, so neighbouring flashes contaminate the
+    # all-flash average; this quantifies how much RF evidence survives when
+    # that contamination is removed. The all-flash result stays the primary
+    # analysis so earlier outputs remain reproducible.
+    if not cfg.rf_isolated_only:
+        rf_iso = compute_receptive_fields(
+            session, refined_ids, flashes, grid,
+            cfg.with_overrides(rf_isolated_only=True), verbose=False,
+        )
+        rf.table["z_max_iso"] = rf_iso.table["z_max"].values
+        rf.table["p_perm_iso"] = rf_iso.table["p_perm"].values
+        rf.table["significant_perm_iso"] = rf_iso.table[
+            "significant_perm"].values
+        if verbose:
+            print(f"  RF robustness (isolated flashes only, "
+                  f"n={rf_iso.n_flashes_used}/{rf.n_flashes_total}): "
+                  f"{int(rf_iso.table['significant_perm'].sum())}/"
+                  f"{len(rf_iso.table)} units significant vs "
+                  f"{int(rf.table['significant_perm'].sum())}/"
+                  f"{len(rf.table)} on all flashes")
     write_table(rf.table, out_dir / "receptive_fields.csv", verbose=verbose)
     if make_figures:
         fig.plot_receptive_fields(rf, refined_ids, out_dir)
@@ -272,6 +294,9 @@ def _build_summary(session, units, grating, flashes, grid, reg, decode_mean, rf,
         "side_decoding_acc": decode_mean,
         "n_sig_rf": int(rf.table["significant"].sum()),
         "n_sig_rf_permutation": int(rf.table["significant_perm"].sum()),
+        "n_sig_rf_permutation_iso": (int(rf.table["significant_perm_iso"].sum())
+                                     if "significant_perm_iso" in rf.table
+                                     else -1),
         "pca_evr_pc1": float(evr[0]),
         "pca_evr_pc1_2": float(pca.cum_evr[1]),
         "discriminability": pca.discriminability,
@@ -349,11 +374,16 @@ def run_model_stage(part2: Part2Result, out_dir, cfg: AnalysisConfig | None = No
     write_table(dim_selection, out_dir / "latent_dimension_selection.csv",
                 verbose=verbose)
     if verbose:
-        ok = dim_selection.dropna(subset=["bic"])
-        if len(ok):
-            print(f"  Dynamic factor model: BIC selects "
-                  f"{int(ok.loc[ok['bic'].idxmin(), 'n_factors'])} latent factors "
-                  f"(k = {list(cfg.latent_factors)})")
+        n_conv = (int(dim_selection["converged"].sum())
+                  if "converged" in dim_selection else 0)
+        best_k = _bic_best_k(dim_selection)
+        if best_k >= 0:
+            print(f"  Dynamic factor model: BIC selects {best_k} latent factors "
+                  f"({n_conv}/{len(dim_selection)} fits converged; "
+                  f"k = {list(cfg.latent_factors)})")
+        else:
+            print(f"  Dynamic factor model: no converged fit "
+                  f"({n_conv}/{len(dim_selection)}); BIC selection not usable")
     if make_figures:
         fig.plot_latent_models(factor, var, eigenvalues, dim_selection, out_dir)
 
@@ -378,10 +408,7 @@ def run_model_stage(part2: Part2Result, out_dir, cfg: AnalysisConfig | None = No
         "fa_total_explained": factor.total_explained,
         "var1_r2": var["r2"],
         "var1_max_eigen_magnitude": float(eigenvalues["magnitude"].max()),
-        "dfm_best_k_bic": int(dim_selection.dropna(subset=["bic"])
-                              .loc[dim_selection.dropna(subset=["bic"])["bic"]
-                                   .idxmin(), "n_factors"])
-        if dim_selection["bic"].notna().any() else -1,
+        "dfm_best_k_bic": _bic_best_k(dim_selection),
     }])
     write_table(summary, out_dir / "model_summary.csv", verbose=verbose)
 
@@ -390,6 +417,20 @@ def run_model_stage(part2: Part2Result, out_dir, cfg: AnalysisConfig | None = No
     return ModelResult(glm=glm, rrr=rrr, factor=factor, var=var,
                        eigenvalues=eigenvalues, dim_selection=dim_selection,
                        agreement=agreement, summary=summary)
+
+
+def _bic_best_k(dim_selection: pd.DataFrame) -> int:
+    """BIC-optimal number of dynamic factors among *converged* fits.
+
+    Returns ``-1`` when no fit produced a usable BIC, so the summary table has
+    an explicit "not estimated" value rather than a misleading optimum.
+    """
+    ok = dim_selection.dropna(subset=["bic"])
+    if "converged" in ok.columns:
+        ok = ok[ok["converged"].astype(bool)]
+    if ok.empty:
+        return -1
+    return int(ok.loc[ok["bic"].idxmin(), "n_factors"])
 
 
 def _concatenate_conditions(part2: Part2Result):
@@ -465,7 +506,7 @@ MULTISESSION_COLUMNS = [
     "n_sig_regression", "median_r2_cv",
     "side_decoding_acc", "side_decoding_null_mean", "side_decoding_null_p95",
     "side_decoding_n",
-    "n_sig_rf", "rf_fraction",
+    "n_sig_rf", "rf_fraction", "rf_fraction_iso",
     "pca_evr_pc1", "pca_evr_pc1_2", "discriminability",
 ]
 
@@ -511,6 +552,13 @@ def session_metrics(session, cfg: AnalysisConfig | None = None,
     null_mean, null_p95, _ = decode_side_null(X_side, y_side, cfg)
     rf = compute_receptive_fields(session, refined_ids, flashes, grid, cfg,
                                   verbose=False)
+    rf_iso = None
+    if not cfg.rf_isolated_only:
+        # bias-free variant: STA restricted to temporally isolated presentations
+        rf_iso = compute_receptive_fields(
+            session, refined_ids, flashes, grid,
+            cfg.with_overrides(rf_isolated_only=True), verbose=False,
+        )
     pca = population_pca(tuning.X, tuning.conds, cfg)
 
     row.update({
@@ -522,6 +570,8 @@ def session_metrics(session, cfg: AnalysisConfig | None = None,
         "side_decoding_n": n_side,
         "n_sig_rf": int(rf.table["significant_perm"].sum()),
         "rf_fraction": float(rf.table["significant_perm"].mean()),
+        "rf_fraction_iso": (float(rf_iso.table["significant_perm"].mean())
+                            if rf_iso is not None else np.nan),
         "pca_evr_pc1": float(pca.evr[0]),
         "pca_evr_pc1_2": float(pca.cum_evr[1]) if len(pca.cum_evr) > 1 else np.nan,
         "discriminability": pca.discriminability,
@@ -602,6 +652,9 @@ def run_multisession(data_root, out_dir, cfg: AnalysisConfig | None = None,
 
     table = _write_metrics(out_dir, cached, rows)
     table = _decorate_multisession(table, refs)
+    # re-write with the subject/date labels attached: the cache is keyed on the
+    # session path only, but the persisted artifact must be self-describing
+    table.to_csv(cache_path, index=False)
 
     if verbose:
         print(f"\n  Multi-session table: {len(table)} sessions, "
@@ -633,12 +686,13 @@ def run_multisession(data_root, out_dir, cfg: AnalysisConfig | None = None,
 
 def _write_metrics(out_dir, cached, rows):
     new = pd.DataFrame(rows)
-    if new.empty:
-        table = cached
+    # exclude empty frames before concatenating: pandas deprecates (and will
+    # change) the dtype behaviour of concatenating empty/all-NA entries
+    frames = [f for f in (cached, new) if len(f)]
+    if not frames:
+        table = pd.DataFrame(columns=MULTISESSION_COLUMNS)
     else:
-        # drop duplicate sessions (keep the most recent) before merging
-        new = new.drop_duplicates(subset=["session"], keep="last")
-        table = pd.concat([cached, new], ignore_index=True)
+        table = pd.concat(frames, ignore_index=True)
         table = table.drop_duplicates(subset=["session"], keep="last")
     table.to_csv(Path(out_dir) / "multisession_metrics.csv", index=False)
     return table

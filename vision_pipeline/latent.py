@@ -243,21 +243,36 @@ def eigenvalue_summary(eigenvalues, bin_size):
 def dynamic_factor(Y, n_factors=2, factor_order=1):
     """Linear-Gaussian dynamic factor model (AR(``factor_order``) latents).
 
-    Fitted by maximum likelihood with :mod:`statsmodels`. Returns ``None`` if
-    the optimizer fails to converge, so callers can degrade gracefully.
+    Fitted by maximum likelihood with :mod:`statsmodels`. Returns
+    ``(result, converged)``, or ``None`` if the fit fails outright, so callers
+    can degrade gracefully. ``converged`` comes from the statsmodels
+    convergence *warning*: ``fit`` does not raise when the optimiser gives up,
+    so the warning is the only reliable signal.
     """
+    import warnings
+
+    from statsmodels.tools.sm_exceptions import ConvergenceWarning
     from statsmodels.tsa.statespace.dynamic_factor import DynamicFactor
 
     Y = np.asarray(Y, float)
     if Y.shape[1] < 2 or len(Y) < 20:
         return None
+    # standardise each series: units differ by orders of magnitude in firing
+    # rate and the ML optimiser is sensitive to that scale. loglik/AIC/BIC are
+    # only compared across k within a fixed scaling, so this does not affect
+    # the model selection.
+    Yz = (Y - Y.mean(axis=0)) / (Y.std(axis=0) + 1e-12)
     try:
-        model = DynamicFactor(Y, k_factors=int(n_factors),
+        model = DynamicFactor(Yz, k_factors=int(n_factors),
                               factor_order=int(factor_order))
-        res = model.fit(disp=False, maxiter=200)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            res = model.fit(disp=False, maxiter=1000)
     except Exception:
         return None
-    return res
+    converged = not any(issubclass(w.category, ConvergenceWarning)
+                        for w in caught)
+    return res, converged
 
 
 def select_latent_dimension(Y, candidates=None, cfg: AnalysisConfig | None = None):
@@ -266,14 +281,15 @@ def select_latent_dimension(Y, candidates=None, cfg: AnalysisConfig | None = Non
     candidates = candidates or cfg.latent_factors
     rows = []
     for k in candidates:
-        res = dynamic_factor(Y, k)
-        if res is None:
+        fit = dynamic_factor(Y, k)
+        if fit is None:
             rows.append({"n_factors": int(k), "loglik": np.nan, "aic": np.nan,
                          "bic": np.nan, "converged": False})
             continue
+        res, converged = fit
         rows.append({"n_factors": int(k), "loglik": float(res.llf),
                      "aic": float(res.aic), "bic": float(res.bic),
-                     "converged": True})
+                     "converged": bool(converged)})
     return pd.DataFrame(rows)
 
 

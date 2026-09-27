@@ -59,6 +59,7 @@ class AnalysisConfig:
     rf_window: float = 0.1             # spike-triggered-average integration (s)
     rf_null_samples: int = 1000        # Gaussian Monte-Carlo samples (legacy test)
     rf_permutations: int = 200         # circular-shift permutations (empirical null)
+    rf_isolated_only: bool = False     # STA on temporally isolated flashes only
 
     # --- population / PCA ---
     n_pca_components: int = 10

@@ -104,8 +104,13 @@ def peri_stimulus_psth(session, unit_id, align_times, window, bin_size,
             s, align_times, (edges[b], edges[b + 1])
         )
 
-    rate = counts.mean(axis=0) / bin_size
-    sem = counts.std(axis=0, ddof=1) / np.sqrt(max(len(align_times), 1)) / bin_size
+    if len(align_times):
+        rate = counts.mean(axis=0) / bin_size
+    else:
+        rate = np.zeros(n_bins)
+    # ddof=1 needs at least two trials; single-trial bins get a zero error bar
+    sem = (counts.std(axis=0, ddof=1) / np.sqrt(len(align_times)) / bin_size
+           if len(align_times) > 1 else np.zeros(n_bins))
     centers = edges[:-1] + bin_size / 2
     return centers, rate, sem, counts
 

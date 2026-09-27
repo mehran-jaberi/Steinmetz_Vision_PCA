@@ -1,4 +1,13 @@
-"""Temporary: verify the refactored pipeline reproduces the pre-refactor outputs."""
+"""Verify the refactored pipeline reproduces the pre-refactor outputs.
+
+Run after ``uv run python PART2.py``; compares ``part2_outputs/`` against the
+frozen ``part2_outputs_baseline/``.
+
+Two columns are *expected* to differ: ``region`` (and ``peak_channel`` in
+``visual_units.csv``), because the loader now converts ALF's 1-based
+``clusters.peakChannel`` to a 0-based channel index and the baseline was written
+with the old off-by-one convention. Every other shared column must match.
+"""
 from pathlib import Path
 
 import numpy as np

@@ -20,8 +20,11 @@ Steinmetz_et_al_2019_9974357.zip
 # --- Mirror of the original MATLAB analysis code (link the upstream repo instead) ---
 steinmetz-et-al-2019-master/
 
-# --- Generated outputs (regenerable with: uv run python PART2.py) ---
+# --- Generated outputs (regenerable; see README > Running the Analysis) ---
 part2_outputs/
+model_outputs/
+validation_outputs/
+multisession_outputs/
 
 # --- Editor / OS / tools ---
 .continue/

@@ -2,7 +2,12 @@
 
 The spike-triggered average (STA) at grid cell ``c`` is the mean number of
 spikes fired in the ``win`` seconds following a flash at ``c``, normalised by
-that cell's occupancy. Two significance tests are computed:
+that cell's occupancy.
+
+By default only *temporally isolated* presentations are used: if another flash
+arrives within ``win`` seconds, its response leaks into the window and biases
+the STA. With ``rf_isolated_only=False`` the original all-flash average is
+reproduced. Two significance tests are computed:
 
 * ``significant`` - the original pipeline's test: a Gaussian Monte-Carlo
   threshold on ``max|z|`` across cells. It assumes the 297 cell values are
@@ -23,6 +28,7 @@ import numpy as np
 import pandas as pd
 
 from .config import AnalysisConfig
+from .stimuli import isolated_flash_mask
 from .utils import bh_fdr
 
 
@@ -33,6 +39,9 @@ class ReceptiveFieldResult:
     grid: object
     z_threshold_gaussian: float
     n_permutations: int
+    n_flashes_total: int = 0
+    n_flashes_used: int = 0
+    isolated_only: bool = False
 
 
 def compute_receptive_fields(session, unit_ids, flashes, grid,
@@ -42,12 +51,23 @@ def compute_receptive_fields(session, unit_ids, flashes, grid,
     cfg = cfg or AnalysisConfig()
     unit_ids = [int(u) for u in unit_ids]
 
-    times = flashes["time"].values
-    cells = flashes["cell"].values.astype(int)
+    win = cfg.rf_window
+    n_flashes_total = int(len(flashes))
+    if cfg.rf_isolated_only:
+        keep = isolated_flash_mask(flashes, win)
+        times = flashes["time"].values[keep]
+        cells = flashes["cell"].values.astype(int)[keep]
+    else:
+        times = flashes["time"].values
+        cells = flashes["cell"].values.astype(int)
+    if len(times) == 0:
+        raise ValueError(
+            "no flashes left for the receptive-field average; check "
+            "rf_isolated_only / rf_window"
+        )
     n_cells = grid.n_cells
     occupancy = np.bincount(cells, minlength=n_cells).astype(float)
 
-    win = cfg.rf_window
     t_lo = times.min() - win
     t_hi = times.max() + win
     period = t_hi - t_lo
@@ -109,12 +129,18 @@ def compute_receptive_fields(session, unit_ids, flashes, grid,
     if verbose:
         n_g = int(table["significant"].sum())
         n_p = int(table["significant_perm"].sum())
+        mode = ("isolated presentations only" if cfg.rf_isolated_only
+                else "all presentations")
         print(f"  Receptive fields: {n_p}/{len(table)} units significant "
               f"(permutation FDR p<{cfg.fdr_alpha}); "
               f"{n_g}/{len(table)} by the Gaussian max|z| > {z_thresh:.2f} test")
+        print(f"    STA flashes: {len(times)}/{n_flashes_total} ({mode})")
     return ReceptiveFieldResult(table=table, maps=maps, grid=grid,
                                 z_threshold_gaussian=z_thresh,
-                                n_permutations=cfg.rf_permutations)
+                                n_permutations=cfg.rf_permutations,
+                                n_flashes_total=n_flashes_total,
+                                n_flashes_used=int(len(times)),
+                                isolated_only=bool(cfg.rf_isolated_only))
 
 
 def _counts_in_window(spikes, times, win):
