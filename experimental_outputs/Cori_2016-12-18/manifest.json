@@ -1,0 +1,57 @@
+{
+  "config": {
+    "gap": 4,
+    "glm_alpha": 1.0,
+    "glm_fit_max_iter": 200,
+    "glm_ista_iter": 200,
+    "glm_l1": 0.05,
+    "kernel_alpha": 1.0,
+    "kernel_gamma": null,
+    "kernel_max_train": 3000,
+    "lag": 1,
+    "n_folds": 5,
+    "pls_components": 10,
+    "position_alpha": 1000.0,
+    "position_sigma": 1.5,
+    "post": 1,
+    "pre": 2,
+    "ridge_alpha": 10.0,
+    "softmax_C": 0.1,
+    "softmax_max_iter": 300,
+    "softmax_max_train": 2500
+  },
+  "created_utc": "2026-09-27T15:53:51+00:00",
+  "environment": {
+    "matplotlib": "3.10.9",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python": "3.10.19",
+    "scikit_learn": "1.7.2",
+    "scipy": "1.15.3",
+    "seaborn": "0.13.2",
+    "statsmodels": "0.14.6"
+  },
+  "extra": {
+    "best_method": "pls",
+    "bin_size_s": 0.1,
+    "methods": [
+      "ridge",
+      "pls",
+      "kernel",
+      "position",
+      "matched_filter",
+      "softmax",
+      "glm_map"
+    ],
+    "n_bins": 6019,
+    "n_cells": 297,
+    "n_flashes": 7978,
+    "n_units": 56,
+    "seconds": 28.752955099917017,
+    "session": "Steinmetz_et_al_2019_9974357\\nicklab\\Subjects\\Cori\\2016-12-18\\001"
+  },
+  "git_dirty": true,
+  "git_revision": "7d3bcea",
+  "stage": "reconstruction"
+}
