@@ -1,0 +1,38 @@
+# Pipeline validation report
+
+**Session:** `C:\Users\Administrator\Desktop\compneuro\Steinmetz_Vision_PCA\Steinmetz_et_al_2019_9974357\nicklab\Subjects\Cori\2016-12-14\001`
+
+**Summary:** 30 checks, 0 failed, 2 warnings.
+
+| check | status | value | detail |
+| --- | --- | --- | --- |
+| `spikes_sorted` | PASS | n=10,017,476 | spike times must be non-decreasing (searchsorted depends on it) |
+| `spikes_non_negative` | PASS | 0.0033666666666666667 |  |
+| `cluster_metadata_length` | PASS | 1085 | per-cluster metadata arrays must match n_clusters |
+| `spike_cluster_ids_valid` | PASS | max id = 1084 | every spike must map to an existing cluster |
+| `peak_channels_valid` | PASS | max = 740 | peak channel must index a channel region |
+| `units_with_spikes` | PASS | 0 empty of 1085 | clusters with no spikes cannot be analysed |
+| `trial_arrays_consistent` | PASS | 214 | trial field lengths: [214] |
+| `trial_intervals_shape` | PASS |  | intervals must be an (n_trials, 2) array |
+| `stimulus_precedes_gocue` | PASS | 0 | 0 trials with goCue <= stimulus onset |
+| `onset_times_finite` | PASS | 0 |  |
+| `grating_contrast_values` | PASS | ok | contrasts must come from the task's contrast set |
+| `choice_values` | PASS | [np.float64(-1.0), np.float64(0.0), np.float64(1.0)] | response_choice in {-1, 0, 1} |
+| `included_trials_present` | PASS | 201 | too few included trials for population analyses would be fatal |
+| `sparse_noise_pairing` | PASS | 7962 vs 7962 | positions and times are paired by row and must have equal length |
+| `sparse_noise_sorted` | PASS | 7962 | flash times must be strictly non-decreasing after sorting |
+| `sparse_noise_grid` | PASS | 9 x 33 = 297 | expected 9 x 33 grid for this stimulus |
+| `sparse_noise_occupancy_balanced` | PASS | min 15, max 40 (ratio 2.67) | occupancy must be roughly balanced for an unbiased STA |
+| `flash_isi_ge_window` | WARN | min ISI = 0.0104 s, 749 simultaneous events | distinct presentations closer than the STA window cause overlapping responses (simultaneous flashes are allowed) |
+| `flash_cell_mapping_roundtrip` | PASS |  | cell index must be invertible to (x, y) for RF maps |
+| `response_matrix_matches_bruteforce` | PASS | 0/20 mismatches | vectorised spike counting must equal a direct boolean count |
+| `response_matrix_non_negative` | PASS |  | spike counts must be non-negative integers |
+| `binning_conserves_spikes` | PASS | max discrepancy = 0 | sum of binned counts must equal spikes inside the bin range |
+| `glm_stimulus_lag_correct` | PASS | lag = 1 bin | design stimulus columns must equal the movie at t - lag |
+| `glm_target_aligned` | PASS |  | GLM target must be the spike counts of the matching bins |
+| `glm_history_aligned` | PASS |  | history term at row i must equal counts[i + lag - h] |
+| `responsiveness_null_calibrated` | PASS | null mean 0.000, p95 0.000 (alpha=0.05) | fraction of units called responsive under circular shifting (should be close to the FDR level) |
+| `decoding_above_chance` | WARN | acc 0.589, null mean 0.503, p95 0.599, p = 0.0945 (n=87) | observed accuracy vs the label-permutation null (a scientific result, reported for every session) |
+| `rf_significance_consistent` | PASS | Gaussian 0.91 vs permutation 0.82 | permutation test is stricter; a large gap means the Gaussian threshold over-calls significance |
+| `response_split_half_reliability` | PASS | median r = 0.223 (n=34 units) | median across units of the odd/even correlation of the condition-mean response (reliability of stimulus responses) |
+| `unit_state_coupling` | PASS | median r = 0.790 (n=34) | median correlation between unit rate and global rate profile across the session (high values indicate state-driven units) |

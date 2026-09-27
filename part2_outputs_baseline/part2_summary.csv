@@ -1,0 +1,2 @@
+session,n_clusters,n_anatomical,n_quality,n_functional,n_grating_trials,n_conditions,n_sparse_noise_flashes,sparse_grid,n_sig_regression,side_decoding_acc,n_sig_rf,pca_evr_pc1,pca_evr_pc1_2,discriminability
+C:\Users\Administrator\Desktop\compneuro\steinmetz\Steinmetz_et_al_2019_9974357\nicklab\Subjects\Cori\2016-12-14\001,1085,220,42,34,201,16,7962,9x33,8,0.5888888888888888,31,0.2841607701642419,0.3455739840599983,0.04401381752439715

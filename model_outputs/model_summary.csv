@@ -1,0 +1,2 @@
+session,n_units_modelled,glm_median_r2_dev_cv,glm_n_significant,glm_sta_median_corr,rrr_best_rank,rrr_best_cv_r2,rrr_full_r2,fa_total_explained,var1_r2,var1_max_eigen_magnitude,dfm_best_k_bic
+C:\Users\Administrator\Desktop\compneuro\Steinmetz_Vision_PCA\Steinmetz_et_al_2019_9974357\nicklab\Subjects\Cori\2016-12-14\001,34,0.01278182392823124,13,0.7234195240986023,2,0.07324670183053872,0.15652242718516596,0.3494198980605746,0.4254821732210441,0.7718744982062367,1
