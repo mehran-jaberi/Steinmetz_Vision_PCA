@@ -21,11 +21,11 @@ Steinmetz_et_al_2019_9974357.zip
 steinmetz-et-al-2019-master/
 
 # --- Generated outputs (regenerable; see README > Running the Analysis) ---
+# NB: experimental_outputs/ (Part 4) is deliberately tracked, so it is not listed here.
 part2_outputs/
 model_outputs/
 validation_outputs/
 multisession_outputs/
-experimental_outputs/
 
 # --- Editor / OS / tools ---
 .continue/
