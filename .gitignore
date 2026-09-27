@@ -25,6 +25,7 @@ part2_outputs/
 model_outputs/
 validation_outputs/
 multisession_outputs/
+experimental_outputs/
 
 # --- Editor / OS / tools ---
 .continue/

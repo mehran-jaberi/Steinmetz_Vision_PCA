@@ -8,7 +8,7 @@ The current implementation is being developed around the **Steinmetz et al. (201
 
 ## Current Status
 
-This project is **actively under development** and now consists of three components:
+This project is **actively under development** and now consists of four components:
 
 1. **Part 1 — exploratory notebook** (`Main_Steinmetz.ipynb`): general session exploration covering data loading, firing-rate statistics, PSTHs, choice-related activity, population decoding, probe-anatomy visualizations, behavioral visualizations, and an initial (preliminary) identification of visual-area neurons.
 
@@ -18,6 +18,8 @@ This project is **actively under development** and now consists of three compone
    * **validation** — executable integrity / alignment / null-calibration checks on a session (`validation_outputs/`);
    * **model** — Poisson GLM encoding models, reduced-rank regression and latent-dynamics models (`model_outputs/`);
    * **multisession** — the same metric pipeline over every available session, cached and parallelisable (`multisession_outputs/`).
+
+4. **Experimental — stimulus reconstruction** (`experimental.py`, `experimental_outputs/`): the inverse of the encoding stages. Seven decoders recover the sparse-noise movie from the population response, validated against a synthetic ground-truth dataset and evaluated on real sessions. This component is exploratory and its results are preliminary — see [Part 4](#part-4--experimental-reconstructing-the-stimulus-experimentalpy).
 
 The analysis is intended as an evolving **prototype** rather than a finalized pipeline; parameters, preprocessing choices, statistical procedures, and visualizations are expected to change as the project develops and preliminary results inform the next stages of analysis. Methodological caveats that the validation stage surfaced are documented explicitly under [Methodological findings and limitations](#methodological-findings-and-limitations).
 
@@ -259,6 +261,68 @@ Outputs: `multisession_metrics.csv` (one row per session, with subject/date labe
 * **Dynamic-factor fits frequently fail to converge** (see Stage 6); BIC selection is therefore restricted to converged fits and reported with the convergence count.
 * **The dynamic factor model treats condition boundaries as real time** — condition-averaged trajectories are concatenated across conditions, which is a deliberate, documented simplification.
 
+## Part 4 — Experimental: reconstructing the stimulus (`experimental.py`)
+
+Parts 2–3 go one way: stimulus → predicted response. This part solves the inverse — given the population response, recover the stimulus movie. It is deliberately exploratory: the algorithms and the numbers below are a first pass, not a settled result.
+
+Seven decoders in `vision_pipeline/reconstruction.py` are compared on identical held-out data:
+
+| decoder | family | what it estimates |
+| --- | --- | --- |
+| `ridge` | linear, L2 | one weight per (cell, unit, latency) — the OLE baseline |
+| `pls` | low-rank linear | the few stimulus dimensions the population carries |
+| `kernel` | kernel ridge (RBF) | nonlinear read-out in dual form |
+| `position` | two-stage regression | flash position (x, y), plus a separate flash detector |
+| `matched_filter` | encoding-based | projection of the response onto Poisson-GLM-fitted kernels |
+| `softmax` | multinomial logistic | 297 cell classes plus a no-flash class (`1 − P(no flash)` detects) |
+| `glm_map` | generative, non-negative MAP | inverts the Poisson encoder under an L1 prior |
+
+Stimulus bin `t` is predicted from the response in `[t + lag − pre, t + lag + post]`, i.e. a two-bin lead-in with a one-bin look-ahead (offline reconstruction, stated rather than assumed); features are z-scored with training statistics only.
+
+**Evaluation is built around blocks, not bins.** Time is split into five contiguous blocks, a guard gap of at least `pre + post` bins is removed around every test block, and the code asserts that no training bin sits inside the response window of a test bin. Chance is a *time-shifted target* (the same decoder fitted against the movie rolled by half the recording), so each metric carries its own empirical null. Metrics: detection AUC, top-1 / top-5 localisation on flash bins, localisation and position error in grid cells, mean per-cell correlation, and global movie R².
+
+### Synthetic validation
+
+`experimental.py --selftest` builds a linear-Poisson encoder with known kernels (30 units, 2400 bins, exact one-bin latency), fits every decoder, and compares them with an oracle matched filter that is handed the true kernels:
+
+| | AUC | top-1 | top-5 |
+| --- | --- | --- | --- |
+| oracle (true kernels) | 0.803 | 13.6% | — |
+| chance control | 0.503 | 0.35% | — |
+| ridge | 0.764 | 12.2% | 24.7% |
+| pls | 0.723 | 5.6% | 14.6% |
+| kernel | 0.652 | 17.8% | 29.6% |
+| position | 0.741 | 1.1% | 7.0% |
+| matched_filter | 0.753 | 9.1% | 24.4% |
+| softmax | 0.708 | 12.5% | 27.5% |
+| glm_map | 0.690 | 9.8% | 15.7% |
+
+Every decoder clears the control by a wide margin (the self-test fails with exit code 1 otherwise). Two caveats are honest rather than cosmetic: `kernel` *beats* the oracle on top-1 because a matched filter ignores the sparse prior (most bins contain no flash) that the learned decoders capture implicitly; and `position` localises poorly by construction, because its score map is a gaussian of width 1.5 grid units whose argmax is necessarily a smoothed estimate.
+
+### Real sessions
+
+Three sessions, same protocol and configuration (top-1 chance = 1/297 = 0.34% on the 9 × 33 grid); AUC / top-1:
+
+| decoder | Cori 2016-12-14 (34 units) | Cori 2016-12-18 (56 units) | Forssmann 2017-11-02 (76 units) |
+| --- | --- | --- | --- |
+| `ridge` | 0.592 / 4.04% | 0.590 / 2.00% | 0.502 / 0.68% |
+| `pls` | 0.606 / 3.67% | 0.611 / 2.41% | 0.492 / 0.83% |
+| `kernel` | 0.570 / 3.77% | 0.514 / 2.09% | 0.505 / 0.72% |
+| `position` | 0.625 / 0.71% | 0.626 / 0.57% | 0.490 / 0.66% |
+| `matched_filter` | 0.611 / 1.32% | 0.581 / 1.59% | 0.503 / 0.72% |
+| `softmax` | 0.573 / 2.05% | 0.599 / 0.89% | 0.496 / 0.72% |
+| `glm_map` | 0.580 / 2.74% | 0.516 / 1.39% | 0.500 / 0.53% |
+| time-shifted control | 0.512 / 0.46% | 0.506 / 0.64% | 0.510 / 0.68% |
+
+Findings:
+
+* **The stimulus is weakly but reliably recoverable where the sparse-noise response exists.** On both Cori sessions every decoder beats its own control: detection AUC 0.57–0.63 against a ~0.51 null, top-1 localisation 2–4% against 0.34% chance (6–12×), and top-5 up to 12.3%.
+* **`position` has the best detection and the worst localisation.** A two-parameter estimate of *where* the flash was is an effective flash detector (AUC 0.625/0.626, the best of the seven), but with σ = 1.5 cells the gaussian map cannot resolve one-cell stimuli, so its argmax hits the exact cell only ~0.6% of the time. That trade-off is expected, not a defect.
+* **Forssmann 2017-11-02 is an informative negative control.** With the largest population (76 refined units) every decoder sits exactly at the time-shifted control. This matches the Part 3 result that this subject has **0 significant sparse-noise receptive fields in all of its sessions** despite up to 76 refined visual units: its neurons respond to drifting gratings but not detectably to the flashes, so there is nothing to decode. The failure is a property of the data, not of the decoders — and it is the reason the reconstruction is not evidence about decoding in general.
+* **Movie R² is only meaningful for calibrated decoders.** `ridge`/`pls` predict the 0/1 movie on its own scale (R² ≈ 0), whereas the matched filter emits arbitrary projection units (R² ≈ −0.5) and the MAP decoder is non-negative and over-sparse (R² ≈ −200 to −600). For those, read the AUC and the per-cell correlation.
+
+Untested next steps (ideas, not claims): whitening the population response against the spike-history term the encoding GLM already fits, binning finer than 100 ms so simultaneous flashes stop sharing a bin, and a sparse-prior decoder that treats the cell map jointly rather than reweighting the fixed L1 term `glm_map` currently uses.
+
 ## Dataset
 
 The analysis is currently being developed using the **Steinmetz et al. (2019) Neuropixels dataset**, which contains large-scale electrophysiological recordings together with behavioral and stimulus information.
@@ -297,12 +361,14 @@ Dependencies are managed with **uv** via `pyproject.toml`. Note that the base An
 │   ├── population.py      # PCA and condition structure
 │   ├── glm.py             # Poisson stimulus encoding models
 │   ├── latent.py          # reduced-rank regression, latent dynamics
+│   ├── reconstruction.py  # Part 4: stimulus reconstruction decoders
 │   ├── validation.py      # integrity, alignment and null-calibration checks
 │   ├── figures.py         # all plots
 │   ├── pipeline.py        # stage orchestration
 │   └── reporting.py       # run manifests (config, versions, git revision)
 ├── PART2.py               # thin entry point for the single-session stage
 ├── combined_pipeline.py   # staged CLI: single · validate · model · multisession
+├── experimental.py        # Part 4: reconstruction runner, self-test, figures
 ├── functions.py           # shared helpers (used by the notebook)
 ├── pyproject.toml         # uv-managed dependencies
 ├── config/
@@ -311,6 +377,7 @@ Dependencies are managed with **uv** via `pyproject.toml`. Note that the base An
 ├── model_outputs/         # GLM / reduced-rank / latent-dynamics results
 ├── validation_outputs/    # per-session validation report
 ├── multisession_outputs/  # cross-session tables + figures
+├── experimental_outputs/  # Part 4: reconstruction tables, predictions, figures
 ├── Steinmetz_et_al_2019_9974357/   # ALF-format dataset (obtained separately)
 ├── steinmetz-et-al-2019-master/    # original MATLAB analysis code
 └── README.md
@@ -339,6 +406,15 @@ uv run python combined_pipeline.py --stages multisession --subjects Cori,Forssma
 
 # Override any AnalysisConfig field
 uv run python combined_pipeline.py --stages single --set fdr_alpha=0.01 --set rf_isolated_only=true
+
+# Part 4: validate every reconstruction decoder on synthetic data (no dataset needed)
+uv run python experimental.py --selftest
+
+# Part 4: reconstruct the stimulus from one session (writes to experimental_outputs/)
+uv run python experimental.py --session <path> --out experimental_outputs/<label>
+
+# Part 4: chosen decoders and a custom response window
+uv run python experimental.py --methods ridge,pls,matched_filter --pre 2 --post 1
 ```
 
 The session path is configured at the top of `PART2.py` (`SESSION`) or with `--session`; the multi-session stage scans `--data-root` (default: `Steinmetz_et_al_2019_9974357/nicklab/Subjects`). Each stage prints progress and summary statistics as it runs and writes a `manifest.json` recording the configuration, library versions and git revision that produced it. The multi-session stage caches per-session metrics in `multisession_outputs/multisession_metrics.csv`, so interrupted batches resume where they stopped.
