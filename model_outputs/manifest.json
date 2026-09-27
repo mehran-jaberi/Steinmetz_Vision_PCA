@@ -1,0 +1,68 @@
+{
+  "config": {
+    "base_window": [
+      -0.35,
+      -0.05
+    ],
+    "cv_folds": 5,
+    "fdr_alpha": 0.05,
+    "glm_alpha": 1.0,
+    "glm_bin": 0.1,
+    "glm_history_bins": 1,
+    "good_annotation": 1,
+    "latent_factors": [
+      1,
+      2,
+      3,
+      4,
+      6
+    ],
+    "min_condition_trials": 3,
+    "min_total_spikes": 50,
+    "min_units": 5,
+    "movie_bin": 0.1,
+    "n_pca_components": 10,
+    "n_permutations": 200,
+    "random_seed": 42,
+    "rf_isolated_only": false,
+    "rf_null_samples": 1000,
+    "rf_permutations": 200,
+    "rf_window": 0.1,
+    "rrr_ranks": [
+      1,
+      2,
+      3,
+      5,
+      8,
+      12
+    ],
+    "stim_window": [
+      0.05,
+      0.35
+    ],
+    "traj_bin": 0.02,
+    "traj_window": [
+      -0.1,
+      0.5
+    ],
+    "var_lags": 1
+  },
+  "created_utc": "2026-09-27T14:52:22+00:00",
+  "environment": {
+    "matplotlib": "3.10.9",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python": "3.10.19",
+    "scikit_learn": "1.7.2",
+    "scipy": "1.15.3",
+    "seaborn": "0.13.2",
+    "statsmodels": "0.14.6"
+  },
+  "extra": {
+    "session": "C:\\Users\\Administrator\\Desktop\\compneuro\\Steinmetz_Vision_PCA\\Steinmetz_et_al_2019_9974357\\nicklab\\Subjects\\Cori\\2016-12-14\\001"
+  },
+  "git_dirty": false,
+  "git_revision": "6fd2865",
+  "stage": "model"
+}
